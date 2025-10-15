@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class SensorData {
   final String name;
   final double value;
@@ -73,5 +75,3 @@ class TimeSeriesData {
     required this.value,
   });
 }
-
-import 'package:flutter/material.dart';
