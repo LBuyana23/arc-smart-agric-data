@@ -8,23 +8,47 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:smart_farm_platform/main.dart';
+import 'package:provider/provider.dart';
+import 'package:smart_farm_platform/providers/app_state.dart' as real;
+import 'package:smart_farm_platform/pages/overview_page.dart';
+import 'package:smart_farm_platform/services/api_service.dart';
+import 'package:smart_farm_platform/models/greenhouse_data.dart';
+
+class FakeAppState extends ChangeNotifier {
+  bool get isSidebarCollapsed => false;
+  String get currentPage => 'Overview';
+  List<double> get liveData => List.generate(60, (i) => 20 + i * 0.1);
+  String get currentInsight => 'Fake insight for tests';
+  double get insightConfidence => 0.8;
+  String get systemStatus => 'stable';
+}
+
+class _FakeApiService extends ApiService {
+  _FakeApiService() : super();
+
+  @override
+  Future<GreenhouseData> fetchLatestGreenhouseData() async {
+    return GreenhouseData(
+      timestamp: DateTime.now().toIso8601String(),
+      temperature: 22.5,
+      humidity: 55.0,
+      pressure: 101.2,
+      co2: 420,
+      lightIntensity: 1200,
+    );
+  }
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('App builds and shows overview title', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => real.AppState(startSimulations: false),
+        child: MaterialApp(home: OverviewPage(api: _FakeApiService())),
+      ),
+    );
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Dashboard Overview'), findsOneWidget);
   });
 }

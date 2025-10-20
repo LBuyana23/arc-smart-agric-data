@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'dart:math';
 import '../theme/app_theme.dart';
 import '../models/sensor_data.dart';
+import '../models/irrigation_data.dart';
+import '../services/api_service.dart';
 
 class IrrigationPage extends StatefulWidget {
   const IrrigationPage({super.key});
@@ -47,13 +49,7 @@ class _IrrigationPageState extends State<IrrigationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final snapshot = IrrigationSnapshot(
-      waterFlow: 45.3,
-      delta: 2.1,
-      timestamp: DateTime.now(),
-    );
-
-    final timeSeriesData = _generateTimeSeriesData(_selectedTimeRange);
+    final api = ApiService();
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(24),
@@ -102,36 +98,72 @@ class _IrrigationPageState extends State<IrrigationPage> {
             ],
           ),
           SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth > 1000) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 1, child: _buildLatestSnapshot(snapshot)),
-                    SizedBox(width: 16),
-                    Expanded(flex: 2, child: _buildTimeSeriesChart(timeSeriesData)),
-                  ],
-                );
-              } else {
-                return Column(
-                  children: [
-                    _buildLatestSnapshot(snapshot),
-                    SizedBox(height: 16),
-                    _buildTimeSeriesChart(timeSeriesData),
-                  ],
+          // Fetch irrigation data and show snapshot + chart
+          FutureBuilder<IrrigationData>(
+            future: api.fetchLatestIrrigationData(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text('Error loading irrigation data: ${snapshot.error}'),
                 );
               }
+
+              final data = snapshot.data!;
+              final latestSnapshot = IrrigationSnapshot(
+                waterFlow: data.flowRateLmin,
+                delta: 0.0,
+                timestamp: DateTime.tryParse(data.timestamp) ?? DateTime.now(),
+              );
+
+              // For time series, seed values around the current flow rate
+              final timeSeriesData = _generateTimeSeriesData(_selectedTimeRange).map((ts) {
+                // keep timestamp but override value around fetched flow rate
+                final jitter = Random().nextDouble() * 2 - 1;
+                return TimeSeriesData(timestamp: ts.timestamp, value: data.flowRateLmin + jitter);
+              }).toList();
+
+              return LayoutBuilder(builder: (context, constraints) {
+                if (constraints.maxWidth > 1000) {
+                  return Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 1, child: _buildLatestSnapshot(latestSnapshot, irrigationData: data)),
+                          SizedBox(width: 16),
+                          Expanded(flex: 2, child: _buildTimeSeriesChart(timeSeriesData)),
+                        ],
+                      ),
+                      SizedBox(height: 24),
+                      _buildRawDataTable(override: data),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    children: [
+                      _buildLatestSnapshot(latestSnapshot, irrigationData: data),
+                      SizedBox(height: 16),
+                      _buildTimeSeriesChart(timeSeriesData),
+                      SizedBox(height: 24),
+                      _buildRawDataTable(override: data),
+                    ],
+                  );
+                }
+              });
             },
           ),
           SizedBox(height: 24),
-          _buildRawDataTable(),
+          // Raw data table is rendered inside the FutureBuilder above so it can include latest data
         ],
       ),
     );
   }
 
-  Widget _buildLatestSnapshot(IrrigationSnapshot snapshot) {
+  Widget _buildLatestSnapshot(IrrigationSnapshot snapshot, {IrrigationData? irrigationData}) {
     final isDeltaPositive = snapshot.delta > 0;
 
     return Card(
@@ -174,6 +206,18 @@ class _IrrigationPageState extends State<IrrigationPage> {
               ],
             ),
             SizedBox(height: 16),
+            if (irrigationData != null) ...[
+              Text(
+                'Pump: ${irrigationData.pumpState}',
+                style: TextStyle(color: AppTheme.mutedForeground, fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Total volume: ${irrigationData.totalVolume.toStringAsFixed(1)} L',
+                style: TextStyle(color: AppTheme.mutedForeground, fontSize: 14),
+              ),
+              SizedBox(height: 8),
+            ],
             Container(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -349,7 +393,7 @@ class _IrrigationPageState extends State<IrrigationPage> {
     );
   }
 
-  Widget _buildRawDataTable() {
+  Widget _buildRawDataTable({IrrigationData? override}) {
     final mockData = List.generate(5, (i) {
       return {
         'timestamp': DateFormat('yyyy-MM-dd HH:mm:ss')
@@ -359,6 +403,15 @@ class _IrrigationPageState extends State<IrrigationPage> {
         'valve_status': i % 2 == 0 ? 'OPEN' : 'CLOSED',
       };
     });
+
+    if (override != null) {
+      mockData.insert(0, {
+        'timestamp': override.timestamp,
+        'water_flow': override.flowRateLmin.toStringAsFixed(2),
+        'pressure': '-',
+        'valve_status': override.pumpState,
+      });
+    }
 
     return Card(
       child: Padding(

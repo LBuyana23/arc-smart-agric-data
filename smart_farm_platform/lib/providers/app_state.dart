@@ -28,10 +28,14 @@ class AppState extends ChangeNotifier {
     'Humidity levels optimal for current crop growth stage.',
   ];
 
-  AppState() {
-    _startLiveDataSimulation();
-    _startInsightRotation();
-    _simulateSystemStatus();
+  /// If [startSimulations] is false this will not start background timers —
+  /// useful for tests.
+  AppState({bool startSimulations = true}) {
+    if (startSimulations) {
+      _startLiveDataSimulation();
+      _startInsightRotation();
+      _simulateSystemStatus();
+    }
   }
 
   void toggleSidebar() {
