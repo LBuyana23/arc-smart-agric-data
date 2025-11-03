@@ -10,8 +10,8 @@ BROKER = "localhost"
 PORT = 1883
 
 # Basic Authentication for APEX
-API_USER = "4340171@myuwc.ac.za"
-API_PASSWORD = "d123456789"
+API_USER = "----------"
+API_PASSWORD = "------------"
 
 # Encode Basic Auth credentials once
 auth_token = base64.b64encode(f"{API_USER}:{API_PASSWORD}".encode()).decode()
