@@ -1,10 +1,10 @@
 
-### ARC Smart Agriculture Data Platform  
+# ARC Smart Agriculture Data Platform  
 **Central Data Broker and API – Group 5**
 
 ---
 
-### Overview  
+## Overview  
 The **ARC Smart Agriculture Data Platform** serves as the **central communication hub** and **data management layer** for the entire Smart Agriculture ecosystem.  
 
 It connects multiple IoT subsystems — including greenhouse monitoring, soil sensing, and water management — through the **MQTT protocol** and provides structured APIs for storing, analyzing, and sharing agricultural data in real time.
@@ -42,7 +42,7 @@ arc/+/group9/#
 
 ---
 
-### Setup & Installation
+## Setup & Installation
 
 ### 1. Clone the Repository
 ```bash
@@ -67,25 +67,25 @@ pip install -r requirements.txt
 
 ```bash
 python mqtt_subscriber.py
-Ensure your Mosquitto broker is running on port 1883 and accessible at the IP specified in the script.
 ```
+Ensure your Mosquitto broker is running on port 1883 and accessible at the IP specified in the script.
 
-### Testing Connectivity
+## Testing Connectivity
 
 You can verify broker communication using Mosquitto client tools:
 
-# Subscribe to all topics
+## Subscribe to all topics
 
 ```bash
 mosquitto_sub -t "arc/#"
 ```
 
-# Publish a test message
+## Publish a test message
 ```bash
 mosquitto_pub -t "arc/soil-monitoring/group8/soil-sensor" -m "test message"
 ```
 
-### Example Output
+## Example Output
 
 ```bash
 [MQTT] Connected successfully
@@ -93,7 +93,7 @@ mosquitto_pub -t "arc/soil-monitoring/group8/soil-sensor" -m "test message"
 [MQTT] Message received -> Topic: arc/soil-monitoring/group8/soil-sensor, Payload: {"moisture": 45.3, "temperature": 23.1}
 ```
 
-### License
+## License
 
 This project is for educational and research purposes under the ARC Smart Agriculture initiative.
 © 2025 ARC Group 5. All rights reserved.
