@@ -1,16 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/app_state.dart';
 import 'widgets/main_sidebar.dart';
 import 'pages/overview_page.dart';
 import 'pages/irrigation_page.dart';
-import 'pages/placeholder_page.dart';
+// import 'pages/placeholder_page.dart';
+import 'pages/soil_page.dart';
+import 'pages/crop_vision_page.dart';
+import 'pages/greenhouse_page.dart';
+// Data Catalog and API Integrations pages removed per user request
+import 'pages/settings_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Initialize Hive and open boxes for each endpoint before the app starts
+  await Hive.initFlutter();
+  await Hive.openBox('greenhouse_data');
+  await Hive.openBox('soil_data');
+  await Hive.openBox('crop_vision_data');
+  await Hive.openBox('irrigation_data');
+  // Historical payloads (full /api/all snapshots)
+  await Hive.openBox('historical_data');
+
+  // Disable the built-in simulation timers when running against the live
+  // backend so the UI does not rebuild every second and cause excessive
+  // network requests. Pass startSimulations=false to keep the app responsive
+  // and rely on the real ApiService polling/cache behavior.
   runApp(
     ChangeNotifierProvider(
-      create: (_) => AppState(),
+      create: (_) => AppState(startSimulations: false),
       child: const SmartFarmApp(),
     ),
   );
@@ -35,27 +55,64 @@ class MainLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentPage = context.watch<AppState>().currentPage;
+  final appState = context.watch<AppState>();
+  final currentPage = appState.currentPage;
 
     return Scaffold(
       backgroundColor: AppTheme.darkBackground,
-      body: Row(
+      body: Stack(
         children: [
-          MainSidebar(),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: Duration(milliseconds: 300),
-              switchInCurve: Curves.easeInOut,
-              switchOutCurve: Curves.easeInOut,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: child,
-                );
-              },
-              child: _buildPage(currentPage),
-            ),
+          Row(
+            children: [
+              MainSidebar(),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: Duration(milliseconds: 300),
+                  switchInCurve: Curves.easeInOut,
+                  switchOutCurve: Curves.easeInOut,
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    );
+                  },
+                  child: _buildPage(currentPage),
+                ),
+              ),
+            ],
           ),
+          // When the sidebar is collapsed the footer chevron may be off-screen
+          // on small devices or clipped by layout; show a small persistent
+          // toggle handle on the left edge so the user can always reopen it.
+          Builder(builder: (ctx) {
+            final collapsed = context.watch<AppState>().isSidebarCollapsed;
+            if (!collapsed) return SizedBox.shrink();
+            final height = MediaQuery.of(ctx).size.height;
+            return Positioned(
+              left: 4,
+              top: (height / 2) - 28,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => ctx.read<AppState>().toggleSidebar(),
+                  child: Container(
+                    width: 44,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardBackground.withAlpha(230),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: Icon(Icons.chevron_right, color: AppTheme.foreground),
+                  ),
+                ),
+              ),
+            );
+          }),
+          // The footer chevron in the sidebar is the single control for
+          // opening and closing the sidebar. The previous overlay menu
+          // handle was removed to avoid duplicate toggles and stray UI.
         ],
       ),
     );
@@ -68,40 +125,14 @@ class MainLayout extends StatelessWidget {
       case 'Irrigation':
         return IrrigationPage(key: ValueKey('irrigation'));
       case 'Soil':
-        return PlaceholderPage(
-          key: ValueKey('soil'),
-          title: 'Soil Analysis',
-          description: 'Monitor soil composition, nutrients, and health metrics',
-          icon: Icons.terrain,
-        );
+        return SoilPage(key: ValueKey('soil'));
       case 'Crop Vision':
-        return PlaceholderPage(
-          key: ValueKey('crop'),
-          title: 'Crop Vision',
-          description: 'AI-powered crop health monitoring and analysis',
-          icon: Icons.grass,
-        );
-      case 'Climate':
-        return PlaceholderPage(
-          key: ValueKey('climate'),
-          title: 'Climate Data',
-          description: 'Comprehensive weather and climate monitoring',
-          icon: Icons.wb_sunny,
-        );
-      case 'Data Catalog':
-        return PlaceholderPage(
-          key: ValueKey('catalog'),
-          title: 'Data Catalog',
-          description: 'Browse and manage your farm data sources',
-          icon: Icons.storage,
-        );
-      case 'API & Integrations':
-        return PlaceholderPage(
-          key: ValueKey('api'),
-          title: 'API & Integrations',
-          description: 'Connect external tools and manage API access',
-          icon: Icons.api,
-        );
+        return CropVisionPage(key: ValueKey('crop'));
+      case 'Greenhouse':
+        return GreenhousePage(key: ValueKey('greenhouse'));
+      // Data Catalog and API & Integrations pages removed
+      case 'Settings':
+        return SettingsPage(key: ValueKey('settings'));
       default:
         return OverviewPage(key: ValueKey('overview'));
     }

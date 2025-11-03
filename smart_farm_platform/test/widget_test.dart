@@ -11,40 +11,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_farm_platform/providers/app_state.dart' as real;
 import 'package:smart_farm_platform/pages/overview_page.dart';
-import 'package:smart_farm_platform/services/api_service.dart';
-import 'package:smart_farm_platform/models/greenhouse_data.dart';
-
-class FakeAppState extends ChangeNotifier {
-  bool get isSidebarCollapsed => false;
-  String get currentPage => 'Overview';
-  List<double> get liveData => List.generate(60, (i) => 20 + i * 0.1);
-  String get currentInsight => 'Fake insight for tests';
-  double get insightConfidence => 0.8;
-  String get systemStatus => 'stable';
-}
-
-class _FakeApiService extends ApiService {
-  _FakeApiService() : super();
-
-  @override
-  Future<GreenhouseData> fetchLatestGreenhouseData() async {
-    return GreenhouseData(
-      timestamp: DateTime.now().toIso8601String(),
-      temperature: 22.5,
-      humidity: 55.0,
-      pressure: 101.2,
-      co2: 420,
-      lightIntensity: 1200,
-    );
-  }
-}
+// Tests use the real AppState provider; no injected ApiService is required
 
 void main() {
   testWidgets('App builds and shows overview title', (WidgetTester tester) async {
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => real.AppState(startSimulations: false),
-        child: MaterialApp(home: OverviewPage(api: _FakeApiService())),
+        child: const MaterialApp(home: OverviewPage()),
       ),
     );
     await tester.pump();

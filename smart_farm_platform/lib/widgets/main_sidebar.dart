@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import 'system_health_ring.dart';
@@ -34,10 +35,10 @@ class MainSidebar extends StatelessWidget {
                 _buildMenuItem(context, Icons.water_drop, 'Irrigation', isCollapsed),
                 _buildMenuItem(context, Icons.terrain, 'Soil', isCollapsed),
                 _buildMenuItem(context, Icons.grass, 'Crop Vision', isCollapsed),
-                _buildMenuItem(context, Icons.wb_sunny, 'Climate', isCollapsed),
+                _buildMenuItem(context, Icons.park, 'Greenhouse', isCollapsed),
                 if (!isCollapsed) _buildSectionLabel('Platform'),
-                _buildMenuItem(context, Icons.storage, 'Data Catalog', isCollapsed),
-                _buildMenuItem(context, Icons.api, 'API & Integrations', isCollapsed),
+                // Data Catalog and API & Integrations removed per user request
+                _buildMenuItem(context, Icons.settings, 'Settings', isCollapsed),
               ],
             ),
           ),
@@ -107,43 +108,54 @@ class MainSidebar extends StatelessWidget {
     final appState = context.watch<AppState>();
     final isSelected = appState.currentPage == label;
 
-    return Tooltip(
-      message: isCollapsed ? label : '',
-      child: InkWell(
-        onTap: () => appState.setCurrentPage(label),
-        child: Container(
-          margin: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? AppTheme.primaryGreen.withOpacity(0.1) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: isSelected
-                ? Border.all(color: AppTheme.primaryGreen.withOpacity(0.3))
-                : null,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? AppTheme.primaryGreen : AppTheme.mutedForeground,
-                size: 20,
-              ),
-              if (!isCollapsed) ...[
-                SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isSelected ? AppTheme.primaryGreen : AppTheme.foreground,
-                    fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  ),
+    // Only wrap the menu item in a Tooltip when the sidebar is collapsed.
+    // Avoid passing empty tooltip messages which can cause odd overlay behaviour.
+    Widget item = InkWell(
+      onTap: () => appState.setCurrentPage(label),
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primaryGreen.withAlpha((0.1 * 255).round()) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected
+              ? Border.all(color: AppTheme.primaryGreen.withAlpha((0.3 * 255).round()))
+              : null,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? AppTheme.primaryGreen : AppTheme.mutedForeground,
+              size: 20,
+            ),
+            if (!isCollapsed) ...[
+              SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? AppTheme.primaryGreen : AppTheme.foreground,
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
+
+    if (isCollapsed) {
+      // Only show tooltips on desktop platforms. Tooltips on touch devices
+      // can be intrusive (they stay open on long-press), so avoid them there.
+      final showTip = defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux;
+      if (showTip) return Tooltip(message: label, child: item);
+      return item;
+    }
+
+    return item;
   }
 
   Widget _buildFooter(BuildContext context, bool isCollapsed) {
@@ -173,15 +185,14 @@ class MainSidebar extends StatelessWidget {
                 },
                 tooltip: 'Command Palette (⌘K)',
               ),
-              if (!isCollapsed)
-                IconButton(
-                  icon: Icon(
-                    isCollapsed ? Icons.chevron_right : Icons.chevron_left,
-                    size: 20,
-                  ),
-                  onPressed: () => appState.toggleSidebar(),
-                  tooltip: 'Toggle Sidebar (⌘B)',
+              IconButton(
+                icon: Icon(
+                  isCollapsed ? Icons.chevron_right : Icons.chevron_left,
+                  size: 20,
                 ),
+                onPressed: () => appState.toggleSidebar(),
+                tooltip: isCollapsed ? 'Open sidebar (⌘B)' : 'Close sidebar (⌘B)',
+              ),
             ],
           ),
         ],
@@ -213,7 +224,7 @@ class _CommandPalette extends StatelessWidget {
               autofocus: true,
             ),
             SizedBox(height: 16),
-            ...['Overview', 'Irrigation', 'Soil', 'Climate'].map((page) {
+            ...['Overview', 'Irrigation', 'Soil', 'Greenhouse'].map((page) {
               return ListTile(
                 leading: Icon(Icons.navigate_next, color: AppTheme.primaryGreen),
                 title: Text('Go to $page'),
@@ -222,7 +233,7 @@ class _CommandPalette extends StatelessWidget {
                   Navigator.pop(context);
                 },
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

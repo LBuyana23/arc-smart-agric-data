@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:intl/intl.dart';
-import 'dart:math';
+// Charting removed for irrigation page — charts are not needed; keep table-only UI
 import '../theme/app_theme.dart';
-import '../models/sensor_data.dart';
-import '../models/irrigation_data.dart';
+// sensor_data model import unused by current UI
+// irrigation_data model import removed (we read raw subgroup payloads directly)
 import '../services/api_service.dart';
+import '../widgets/no_data_placeholder.dart';
+import '../utils/ui_helpers.dart';
+import '../widgets/paginated_history.dart';
 
 class IrrigationPage extends StatefulWidget {
   const IrrigationPage({super.key});
@@ -14,42 +15,15 @@ class IrrigationPage extends StatefulWidget {
   State<IrrigationPage> createState() => _IrrigationPageState();
 }
 
-class _IrrigationPageState extends State<IrrigationPage> {
-  String _selectedTimeRange = '24h';
-
-  List<TimeSeriesData> _generateTimeSeriesData(String range) {
-    final now = DateTime.now();
-    int points;
-    Duration interval;
-
-    switch (range) {
-      case '1h':
-        points = 60;
-        interval = Duration(minutes: 1);
-        break;
-      case '7d':
-        points = 168;
-        interval = Duration(hours: 1);
-        break;
-      case '30d':
-        points = 30;
-        interval = Duration(days: 1);
-        break;
-      default:
-        points = 24;
-        interval = Duration(hours: 1);
-    }
-
-    return List.generate(points, (i) {
-      final time = now.subtract(interval * (points - i));
-      final value = 40 + Random().nextDouble() * 20 + sin(i / 5) * 5;
-      return TimeSeriesData(timestamp: time, value: value);
-    });
-  }
+class _IrrigationPageState extends State<IrrigationPage> with AutomaticKeepAliveClientMixin {
+  // _selectedTimeRange removed - time-series UI is not used currently
+  // Representative-row helper removed; irrigation page now renders raw subgroup history directly.
 
   @override
   Widget build(BuildContext context) {
-    final api = ApiService();
+    super.build(context);
+  final api = ApiService();
+  final source = api.getSource('irrigation');
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(24),
@@ -59,25 +33,33 @@ class _IrrigationPageState extends State<IrrigationPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Irrigation',
-                    style: TextStyle(
-                      color: AppTheme.foreground,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Flexible(
+                        child: Text(
+                          'Irrigation',
+                          style: TextStyle(
+                            color: AppTheme.foreground,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (source != null) ...[SizedBox(width: 8), Chip(label: Text(source, style: TextStyle(fontSize: 12)), backgroundColor: Colors.black12)]
+                    ]),
+                    Text(
+                      'Water flow monitoring and analysis',
+                      style: TextStyle(
+                        color: AppTheme.mutedForeground,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                  Text(
-                    'Water flow monitoring and analysis',
-                    style: TextStyle(
-                      color: AppTheme.mutedForeground,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               ElevatedButton.icon(
                 onPressed: () {
@@ -98,62 +80,94 @@ class _IrrigationPageState extends State<IrrigationPage> {
             ],
           ),
           SizedBox(height: 24),
-          // Fetch irrigation data and show snapshot + chart
-          FutureBuilder<IrrigationData>(
-            future: api.fetchLatestIrrigationData(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text('Error loading irrigation data: ${snapshot.error}'),
-                );
-              }
+          // Render a section per irrigation subgroup (charts + last 10 rows table)
+          FutureBuilder<Map<String, dynamic>?>(
+            future: api.fetchAllGroupRaw('irrigation'),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) return SizedBox(height: 80, child: Center(child: CircularProgressIndicator()));
+              if (!snap.hasData || snap.data == null || (snap.data as Map).isEmpty) return NoDataPlaceholder(message: 'No irrigation sources found');
+              final map = Map<String, dynamic>.from(snap.data as Map);
 
-              final data = snapshot.data!;
-              final latestSnapshot = IrrigationSnapshot(
-                waterFlow: data.flowRateLmin,
-                delta: 0.0,
-                timestamp: DateTime.tryParse(data.timestamp) ?? DateTime.now(),
+              return Column(
+                children: map.entries.map((entry) {
+                  final src = entry.key;
+
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(UiHelpers.groupLabel('Irrigation', src), style: TextStyle(color: AppTheme.foreground, fontSize: 18, fontWeight: FontWeight.w700)),
+                        SizedBox(height: 8),
+                        PaginatedHistory(
+                          group: 'irrigation',
+                          source: src,
+                          limit: 10,
+                          builder: (context, rows, page, changePage) {
+                            if (rows.isEmpty) return Text('No history available');
+
+                            // Sort rows newest-first by timestamp. Rows without timestamps are pushed to the end.
+                            rows.sort((a, b) {
+                              final ta = UiHelpers.parseTimestamp(a['CREATED_AT'] ?? a['Timestamp'] ?? a['timestamp'] ?? a['T']);
+                              final tb = UiHelpers.parseTimestamp(b['CREATED_AT'] ?? b['Timestamp'] ?? b['timestamp'] ?? b['T']);
+                              if (ta == null && tb == null) return 0;
+                              if (ta == null) return 1; // a after b
+                              if (tb == null) return -1; // a before b
+                              // descending: newest first
+                              return tb.compareTo(ta);
+                            });
+
+                            // rows is now newest-first; take the first 10 (latest) to display
+                            final recent = rows.length > 10 ? rows.sublist(0, 10) : rows;
+
+                            final cols = rows.first.keys.toList();
+                            final isExpanded = false; // irrigation uses a fixed compact display here
+                            final displayCols = UiHelpers.pickDefaultCols(cols, 'irrigation', hasImage: false, expanded: isExpanded);
+
+                            // Ensure a total/volume flow column is present for user clarity.
+                            // Accept common variants and insert after the flow rate column when possible.
+                            final totalCandidates = ['TOTAL_VOLUME', 'total_volume', 'totalVolume', 'total_flow', 'totalFlow'];
+                            String? totalKey;
+                            for (final k in totalCandidates) {
+                              if (cols.contains(k)) { totalKey = k; break; }
+                            }
+                            if (totalKey != null && !displayCols.contains(totalKey)) {
+                              // try to insert after the flow rate column if present
+                              final flowCandidates = ['FLOW_RATE_LMIN', 'flow_rate_Lmin', 'flow_rate_lmin', 'flowRateLmin', 'flow_rate', 'flowRate'];
+                              int insertAt = displayCols.length;
+                              for (final f in flowCandidates) {
+                                final idx = displayCols.indexOf(f);
+                                if (idx >= 0) { insertAt = idx + 1; break; }
+                              }
+                              if (insertAt > displayCols.length) insertAt = displayCols.length;
+                              try {
+                                displayCols.insert(insertAt, totalKey);
+                              } catch (_) {
+                                // fallback: append
+                                displayCols.add(totalKey);
+                              }
+                            }
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(padding: EdgeInsets.only(bottom: 8), child: Text('Recent raw rows (last ${recent.length} rows — click to view details)', style: TextStyle(color: AppTheme.mutedForeground))),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: DataTable(
+                                    columns: displayCols.map((c) => DataColumn(label: Text(UiHelpers.friendlyName(c)))).toList(),
+                                    rows: recent.map((r) => DataRow(cells: displayCols.map((c) => DataCell(SizedBox(width: 140, child: Text(UiHelpers.formatCell(r[c], c))))).toList(), onSelectChanged: (_) => _showSourceDetail(context, src, r))).toList(),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               );
-
-              // For time series, seed values around the current flow rate
-              final timeSeriesData = _generateTimeSeriesData(_selectedTimeRange).map((ts) {
-                // keep timestamp but override value around fetched flow rate
-                final jitter = Random().nextDouble() * 2 - 1;
-                return TimeSeriesData(timestamp: ts.timestamp, value: data.flowRateLmin + jitter);
-              }).toList();
-
-              return LayoutBuilder(builder: (context, constraints) {
-                if (constraints.maxWidth > 1000) {
-                  return Column(
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 1, child: _buildLatestSnapshot(latestSnapshot, irrigationData: data)),
-                          SizedBox(width: 16),
-                          Expanded(flex: 2, child: _buildTimeSeriesChart(timeSeriesData)),
-                        ],
-                      ),
-                      SizedBox(height: 24),
-                      _buildRawDataTable(override: data),
-                    ],
-                  );
-                } else {
-                  return Column(
-                    children: [
-                      _buildLatestSnapshot(latestSnapshot, irrigationData: data),
-                      SizedBox(height: 16),
-                      _buildTimeSeriesChart(timeSeriesData),
-                      SizedBox(height: 24),
-                      _buildRawDataTable(override: data),
-                    ],
-                  );
-                }
-              });
             },
           ),
           SizedBox(height: 24),
@@ -163,359 +177,36 @@ class _IrrigationPageState extends State<IrrigationPage> {
     );
   }
 
-  Widget _buildLatestSnapshot(IrrigationSnapshot snapshot, {IrrigationData? irrigationData}) {
-    final isDeltaPositive = snapshot.delta > 0;
+  // Charting helpers removed — irrigation page no longer contains charts.
 
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Latest Snapshot',
-              style: TextStyle(
-                color: AppTheme.foreground,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: 24),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  snapshot.waterFlow.toStringAsFixed(1),
-                  style: TextStyle(
-                    color: AppTheme.foreground,
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
+  void _showSourceDetail(BuildContext context, String src, Map<String, dynamic> payload) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text('Source: $src'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: payload.entries.map((e) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [Text(e.key, style: TextStyle(fontWeight: FontWeight.w600)), SizedBox(width: 8), Expanded(child: Text(e.value?.toString() ?? ''))],
                   ),
-                ),
-                SizedBox(width: 8),
-                Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    'L/min',
-                    style: TextStyle(
-                      color: AppTheme.mutedForeground,
-                      fontSize: 20,
-                    ),
-                  ),
-                ),
-              ],
+                );
+              }).toList(),
             ),
-            SizedBox(height: 16),
-            if (irrigationData != null) ...[
-              Text(
-                'Pump: ${irrigationData.pumpState}',
-                style: TextStyle(color: AppTheme.mutedForeground, fontSize: 14),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Total volume: ${irrigationData.totalVolume.toStringAsFixed(1)} L',
-                style: TextStyle(color: AppTheme.mutedForeground, fontSize: 14),
-              ),
-              SizedBox(height: 8),
-            ],
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isDeltaPositive
-                    ? AppTheme.primaryGreen.withOpacity(0.1)
-                    : Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: isDeltaPositive
-                      ? AppTheme.primaryGreen.withOpacity(0.3)
-                      : Colors.red.withOpacity(0.3),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isDeltaPositive ? Icons.arrow_upward : Icons.arrow_downward,
-                    color: isDeltaPositive ? AppTheme.primaryGreen : Colors.red,
-                    size: 16,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    '${snapshot.delta.abs().toStringAsFixed(1)} L/min',
-                    style: TextStyle(
-                      color: isDeltaPositive ? AppTheme.primaryGreen : Colors.red,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Last updated: ${DateFormat('HH:mm:ss').format(snapshot.timestamp)}',
-              style: TextStyle(
-                color: AppTheme.mutedForeground,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Close'))],
+        );
+      },
     );
   }
 
-  Widget _buildTimeSeriesChart(List<TimeSeriesData> data) {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Time-Series Analysis',
-                  style: TextStyle(
-                    color: AppTheme.foreground,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Row(
-                  children: ['1h', '24h', '7d', '30d'].map((range) {
-                    final isSelected = _selectedTimeRange == range;
-                    return Padding(
-                      padding: EdgeInsets.only(left: 8),
-                      child: OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _selectedTimeRange = range;
-                          });
-                        },
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: isSelected
-                              ? AppTheme.primaryGreen.withOpacity(0.1)
-                              : Colors.transparent,
-                          foregroundColor:
-                              isSelected ? AppTheme.primaryGreen : AppTheme.mutedForeground,
-                          side: BorderSide(
-                            color: isSelected ? AppTheme.primaryGreen : AppTheme.border,
-                          ),
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        ),
-                        child: Text(range),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-            SizedBox(height: 24),
-            Container(
-              height: 300,
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    horizontalInterval: 10,
-                    getDrawingHorizontalLine: (value) {
-                      return FlLine(
-                        color: AppTheme.border,
-                        strokeWidth: 1,
-                      );
-                    },
-                  ),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 40,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            value.toInt().toString(),
-                            style: TextStyle(
-                              color: AppTheme.mutedForeground,
-                              fontSize: 12,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                  ),
-                  borderData: FlBorderData(
-                    show: true,
-                    border: Border.all(color: AppTheme.border),
-                  ),
-                  minX: 0,
-                  maxX: (data.length - 1).toDouble(),
-                  minY: 30,
-                  maxY: 70,
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: data
-                          .asMap()
-                          .entries
-                          .map((e) => FlSpot(e.key.toDouble(), e.value.value))
-                          .toList(),
-                      isCurved: true,
-                      color: AppTheme.primaryGreen,
-                      barWidth: 3,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primaryGreen.withOpacity(0.2),
-                            AppTheme.primaryGreen.withOpacity(0.0),
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRawDataTable({IrrigationData? override}) {
-    final mockData = List.generate(5, (i) {
-      return {
-        'timestamp': DateFormat('yyyy-MM-dd HH:mm:ss')
-            .format(DateTime.now().subtract(Duration(minutes: i * 15))),
-        'water_flow': (45 + Random().nextDouble() * 10).toStringAsFixed(2),
-        'pressure': (3.2 + Random().nextDouble() * 0.5).toStringAsFixed(2),
-        'valve_status': i % 2 == 0 ? 'OPEN' : 'CLOSED',
-      };
-    });
-
-    if (override != null) {
-      mockData.insert(0, {
-        'timestamp': override.timestamp,
-        'water_flow': override.flowRateLmin.toStringAsFixed(2),
-        'pressure': '-',
-        'valve_status': override.pumpState,
-      });
-    }
-
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Raw Data Table',
-              style: TextStyle(
-                color: AppTheme.foreground,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: 16),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: MaterialStateProperty.all(
-                  AppTheme.darkBackground,
-                ),
-                columns: [
-                  DataColumn(
-                    label: Text(
-                      'Timestamp',
-                      style: TextStyle(
-                        color: AppTheme.foreground,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Water Flow (L/min)',
-                      style: TextStyle(
-                        color: AppTheme.foreground,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Pressure (bar)',
-                      style: TextStyle(
-                        color: AppTheme.foreground,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Valve Status',
-                      style: TextStyle(
-                        color: AppTheme.foreground,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-                rows: mockData.map((row) {
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(
-                        row['timestamp']!,
-                        style: TextStyle(color: AppTheme.mutedForeground, fontSize: 12),
-                      )),
-                      DataCell(Text(
-                        row['water_flow']!,
-                        style: TextStyle(color: AppTheme.foreground),
-                      )),
-                      DataCell(Text(
-                        row['pressure']!,
-                        style: TextStyle(color: AppTheme.foreground),
-                      )),
-                      DataCell(
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: row['valve_status'] == 'OPEN'
-                                ? AppTheme.primaryGreen.withOpacity(0.1)
-                                : Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            row['valve_status']!,
-                            style: TextStyle(
-                              color: row['valve_status'] == 'OPEN'
-                                  ? AppTheme.primaryGreen
-                                  : Colors.orange,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Legacy snapshot card and helpers removed — irrigation page now renders per-subgroup only
+  
+  @override
+  bool get wantKeepAlive => true;
 }

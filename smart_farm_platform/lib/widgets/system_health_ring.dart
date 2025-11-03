@@ -45,14 +45,14 @@ class _SystemHealthRingState extends State<SystemHealthRing>
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color.withOpacity(0.2),
+              color: color.withAlpha((0.2 * 255).round()),
               border: Border.all(
-                color: color.withOpacity(0.5 + _controller.value * 0.5),
+                color: color.withAlpha(((0.5 + _controller.value * 0.5) * 255).round()),
                 width: 2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(_controller.value * 0.3),
+                  color: color.withAlpha((_controller.value * 0.3 * 255).round()),
                   blurRadius: 8,
                   spreadRadius: 2,
                 ),

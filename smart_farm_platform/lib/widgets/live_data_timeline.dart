@@ -28,7 +28,7 @@ class LiveDataTimeline extends StatelessWidget {
                     color: AppTheme.primaryGreen,
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primaryGreen.withOpacity(0.5),
+                        color: AppTheme.primaryGreen.withAlpha((0.5 * 255).round()),
                         blurRadius: 4,
                         spreadRadius: 1,
                       ),
@@ -82,8 +82,8 @@ class LiveDataTimeline extends StatelessWidget {
                         show: true,
                         gradient: LinearGradient(
                           colors: [
-                            AppTheme.primaryGreen.withOpacity(0.3),
-                            AppTheme.primaryGreen.withOpacity(0.0),
+                            AppTheme.primaryGreen.withAlpha((0.3 * 255).round()),
+                            AppTheme.primaryGreen.withAlpha((0.0 * 255).round()),
                           ],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,

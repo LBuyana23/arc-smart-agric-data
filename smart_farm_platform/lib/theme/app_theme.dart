@@ -18,7 +18,6 @@ class AppTheme {
         primary: primaryGreen,
         secondary: primaryGreen,
         surface: cardBackground,
-        background: darkBackground,
         error: Color(0xFFEF4444),
       ),
       textTheme: GoogleFonts.interTextTheme(
@@ -38,7 +37,7 @@ class AppTheme {
       iconTheme: IconThemeData(color: mutedForeground),
       dividerColor: border,
       appBarTheme: AppBarTheme(
-        backgroundColor: darkBackground,
+        surfaceTintColor: darkBackground,
         elevation: 0,
         iconTheme: IconThemeData(color: mutedForeground),
       ),

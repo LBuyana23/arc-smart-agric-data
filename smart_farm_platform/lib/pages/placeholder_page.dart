@@ -24,7 +24,7 @@ class PlaceholderPage extends StatelessWidget {
             Icon(
               icon,
               size: 80,
-              color: AppTheme.primaryGreen.withOpacity(0.5),
+              color: AppTheme.primaryGreen.withAlpha((0.5 * 255).round()),
             ),
             SizedBox(height: 24),
             Text(
