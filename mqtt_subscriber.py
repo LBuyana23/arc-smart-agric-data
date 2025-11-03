@@ -75,27 +75,7 @@ def get_table(sensor_type: str, group_id: int):
             return entry["table"]
     return None
 
-def send_to_apex(endpoint_url: str, payload: dict):
-    """Send payload as JSON to Oracle APEX endpoint."""
-    try:
-        conn = http.client.HTTPSConnection(APEX_HOST, timeout=5)
-        body = json.dumps(payload)
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        conn.request("POST", endpoint_url, body=body, headers=headers)
 
-        res = conn.getresponse()
-        data = res.read().decode("utf-8")
-
-        if res.status in [200, 201]:
-            print(f"[APEX] ✅ Data sent successfully: {payload}")
-        else:
-            print(f"[APEX] ❌ Error {res.status}: {data}")
-
-    except Exception as e:
-        print(f"[APEX] ❌ Failed to send data: {e}")
-    finally:
-        if 'conn' in locals():
-            conn.close()
 
 # --- MQTT Callbacks ---
 def on_connect(client, userdata, flags, rc):
@@ -125,9 +105,9 @@ def on_message(client, userdata, msg):
         send_to_apex(endpoint_url, payload)
 
     except json.JSONDecodeError:
-        print(f"[MQTT] ⚠️ Invalid JSON from topic {msg.topic}")
+        print(f"[MQTT]  Invalid JSON from topic {msg.topic}")
     except Exception as e:
-        print(f"[MQTT] ⚠️ Error processing message: {e}")
+        print(f"[MQTT]  Error processing message: {e}")
 
 # --- Main ---
 client = mqtt.Client()
