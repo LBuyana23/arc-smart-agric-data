@@ -23,12 +23,17 @@ It connects multiple IoT subsystems — including greenhouse monitoring, soil se
 ### MQTT Topic Standardization  
 All device topics follow a consistent and hierarchical structure for clarity and scalability:  
 
+```bash
 arc/<project-section>/<group-id>/<sensor-type>
+```
 
 **Examples:**
+
+```bash
 - `arc/soil-monitoring/group8/soil-sensor`
 - `arc/greenhouse-monitoring/group9/greenhouse-sensor`
 - `arc/water-management/group10/water-sensor`
+```
 
 This makes it easy to subscribe selectively to specific groups or sensors using wildcard filters such as: 
 
@@ -47,35 +52,46 @@ cd arc-smart-agric-data
 
 ### 2. Create a Virtual Environment
 
+```bash
 python3 -m venv venv
 source venv/bin/activate   # On Windows: venv\Scripts\activate
+```
 
 ### 3. Install Dependencies
 
+```bash
 pip install -r requirements.txt
+```
 
 ### 4. Run the MQTT Subscriber
 
+```bash
 python mqtt_subscriber.py
 Ensure your Mosquitto broker is running on port 1883 and accessible at the IP specified in the script.
+```
 
 ### Testing Connectivity
 
 You can verify broker communication using Mosquitto client tools:
 
 # Subscribe to all topics
+
+```bash
 mosquitto_sub -t "arc/#"
+```
 
 # Publish a test message
+```bash
 mosquitto_pub -t "arc/soil-monitoring/group8/soil-sensor" -m "test message"
-
+```
 
 ### Example Output
 
+```bash
 [MQTT] Connected successfully
 [MQTT] Subscribed to topic: ['arc/soil-monitoring/group8/soil-sensor', 'arc/greenhouse-monitoring/group9/greenhouse-sensor']
 [MQTT] Message received -> Topic: arc/soil-monitoring/group8/soil-sensor, Payload: {"moisture": 45.3, "temperature": 23.1}
-
+```
 
 ### License
 
