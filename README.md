@@ -43,6 +43,7 @@ arc/+/group9/#
 ```bash
 git clone https://github.com/<your-org-or-username>/arc-smart-agric-data.git
 cd arc-smart-agric-data
+```
 
 ### 2. Create a Virtual Environment
 
