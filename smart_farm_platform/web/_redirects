@@ -1,0 +1,5 @@
+/*    /index.html   200
+
+# Optional: Serve 404s to index for SPA routing. Netlify will honor this file when you upload the
+# `build/web` directory or configure a site connected to this repo.
+# For more advanced behavior, you can add rules per-path or set caching headers in _headers.

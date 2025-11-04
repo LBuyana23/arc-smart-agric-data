@@ -1,0 +1,130 @@
+
+# Smart Farm Data Platform: UI & Feature Documentation
+
+This document provides a detailed description of the user interface, components, and features of the Smart Farm Data Platform. The goal is to enable a design or development team to replicate the look, feel, and functionality.
+
+## 1. Design Philosophy & Theme
+
+The UI is designed to be a professional, data-centric control platform with a modern "eco-tech" aesthetic.
+
+- **Theme**: Dark mode is the default theme, creating a high-contrast, focused environment suitable for monitoring.
+- **Color Palette**:
+    - **Background**: A very dark gray/charcoal (`hsl(224 71.4% 4.1%)`).
+    - **Primary/Accent**: A vibrant, neon green (`#00FF88` or `hsl(158 100% 50%)`) used for highlights, graphs, and active states to draw attention.
+    - **Foreground**: Off-white and light grays for text and icons to ensure readability without being harsh.
+    - **Cards/Containers**: Slightly lighter dark grays to create a subtle separation from the main background.
+- **Typography**: The `Inter` font is used for its clean, modern, and highly readable characteristics at all sizes.
+- **Animation**: All animations are subtle and professional. The primary animation library is `framer-motion`, used for smooth page transitions (motion blur + fade) and micro-interactions.
+
+---
+
+## 2. Main Layout & Navigation
+
+The application uses a two-column layout: a collapsible sidebar for navigation and a main content area.
+
+### 2.1. Main Sidebar (`src/components/layout/main-sidebar.tsx`)
+
+A persistent, collapsible sidebar on the left provides access to all sections of the platform.
+
+- **States**:
+    - **Expanded (Default)**: Shows icons and full text labels for each menu item. Width is `16rem`.
+    - **Collapsed**: Shows only icons. Users can hover over an icon to see a tooltip with the label. Width is `3rem`.
+- **Collapsing**: Users can toggle the sidebar state using a "chevrons-left" icon or the `⌘+B` keyboard shortcut. The state is saved in a cookie.
+- **Structure**:
+    - **Header**: Displays the platform title ("Data Platform") and company name ("Smart Farm Inc.").
+    - **Menu Groups**: Sections are logically grouped with separators:
+        1.  **Main**: Overview.
+        2.  **Data Groups**: Irrigation, Soil, Crop Vision, Climate.
+        3.  **Platform**: Data Catalog, API & Integrations.
+    - **Footer**:
+        - **System Health Ring**: A live status indicator (see feature details below).
+        - **Command Palette Trigger**: A search icon that opens the command palette.
+        - **Theme Toggle**: A sun/moon icon to switch between light, dark, and system themes.
+- **Responsiveness**: On mobile, the sidebar is hidden by default and appears as an off-canvas overlay when triggered by a hamburger menu icon in the top header.
+
+### 2.2. Main Content Area (`src/app/dashboard/layout.tsx`)
+
+This is where the page-specific content is displayed.
+
+- **Page Transitions**: When navigating between pages, the content area uses a motion blur and fade effect (`framer-motion`) for a seamless, fluid experience.
+- **Inset Layout**: The main content area has a slight margin, making it appear "inset" within the darker application background, reinforcing the control center feel.
+
+---
+
+## 3. Core Features & Components
+
+### 3.1. Overview Page (`src/app/dashboard/overview/page.tsx`)
+
+This is the central hub, composed of several key modules arranged in a responsive grid.
+
+- **Live Data Timeline Animation**:
+    - **Location**: A full-width card at the very top of the page.
+    - **Appearance**: A thin, continuous `AreaChart` (from Recharts) showing a single metric's fluctuation over the last 60 seconds. It has a gradient fill and no axes, resembling an EKG or heart-rate monitor.
+    - **Functionality**: The chart automatically updates every second, with old data points sliding out as new ones slide in, creating a smooth, live-scrolling effect.
+
+- **Sensor Cards (`src/components/dashboard/sensor-card.tsx`)**:
+    - **Layout**: A responsive grid of 4 cards.
+    - **Content**: Each card displays data for a single sensor (e.g., Air Temperature). It includes:
+        - An icon (e.g., `Thermometer`).
+        - The sensor name.
+        - The current value in a large, bold font.
+        - The unit (e.g., °C).
+        - A `Progress` bar showing the current value relative to a predefined threshold.
+        - A text label for the threshold.
+    - **Conditional Styling**: If the value exceeds the threshold, the value text and the progress bar turn to a destructive/red color.
+
+- **AI Insight Card (`src/components/dashboard/ai-insight-card.tsx`)**:
+    - **Appearance**: A dedicated card with a `Lightbulb` icon and the title "System Insights".
+    - **Functionality**:
+        - Automatically cycles through generated insights every 15 seconds.
+        - An insight is a short, italicized string of text providing analysis on mock data (e.g., “*Soil moisture has dropped...*”).
+        - A loading skeleton is shown while a new insight is "generated".
+    - **Confidence Indicator**: A `Progress` bar at the bottom of the card displays a simulated "confidence score" for the current insight.
+
+- **Weather Overview Module (`src/components/dashboard/weather-overview.tsx`)**:
+    - **Appearance**: A highly stylized card with custom icons and animations.
+    - **Content**:
+        - Location label (e.g., "Cape Town Greenhouse #1").
+        - Large current temperature and weather description (e.g., "Partly Cloudy").
+        - An animated weather icon.
+        - Secondary details: Humidity, Rain Probability, Wind Speed.
+        - Sunrise and sunset times with corresponding icons.
+        - A 3-day forecast with day labels, icons, and high/low temperatures.
+
+- **Threshold Recommender (`src/components/dashboard/threshold-recommender.tsx`)**:
+    - **Appearance**: An interactive card with a `Bot` icon.
+    - **Functionality**:
+        - A dropdown allows the user to select a sensor type.
+        - An "Analyze" button triggers a Genkit AI flow.
+        - While pending, it shows a loading state.
+        - The result is displayed within the card, showing the recommended threshold and the AI's reasoning.
+
+### 3.2. Data Group Pages (e.g., `src/app/dashboard/irrigation/page.tsx`)
+
+These pages provide a deep dive into a specific data source. The Irrigation page serves as the template.
+
+- **Header**: Contains the page title (e.g., "Irrigation") and an **Export CSV** button with a `Download` icon.
+- **Layout**: A multi-column grid that organizes the following components:
+    - **Latest Snapshot Card**: Shows the most recent reading for key metrics (e.g., Water Flow) and a "delta" value comparing it to the previous reading. The delta is colored green for positive changes and red for negative.
+    - **Time-Series Analysis Card**: A large card containing a historical line chart (`AreaChart`) for the primary metric. It includes a `Tabs` component with options to switch the time range (1h, 24h, 7d, 30d).
+    - **Raw Data Table**: A `Table` component displaying the raw, un-normalized data payloads with headers for each field.
+    - **Field Mapping Card**: A placeholder UI intended for an interface where users can map incoming data fields to the canonical schema.
+
+### 3.3. Command Palette (`src/components/layout/command-palette.tsx`)
+
+A global, modal-based command interface for quick actions.
+
+- **Trigger**: Activated by clicking a `Search` icon in the sidebar or using the `⌘+K` keyboard shortcut.
+- **Appearance**: A clean, centered modal (`cmdk` library) with a search input at the top.
+- **Functionality**: Users can type to filter and select commands, which are grouped by category (Navigation, Actions, Theme). Running a command (e.g., "View analytics") navigates the user to the correct page or executes an action (e.g., "Export Data").
+
+### 3.4. System Health Ring (`src/components/dashboard/system-health-ring.tsx`)
+
+- **Location**: Placed in the footer of the main sidebar.
+- **Appearance**: A small, circular indicator. It uses `framer-motion` to create a subtle "pulse" animation.
+- **Functionality**: The color of the ring changes based on simulated system status:
+    - **Green**: "Stable"
+    - **Orange**: "Delayed"
+    - **Red**: "Disconnected"
+- **Tooltip**: Hovering over the ring reveals a tooltip describing the current status (e.g., "System connection is stable.").
+

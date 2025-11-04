@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Use the existing mipmap asset as the foreground for compatibility.
+         For a more polished look consider providing a vector foreground layer. -->
+    <foreground android:drawable="@mipmap/ic_launcher" />
+    <!-- Solid background color to blend with app theme. Change as desired. -->
+    <background android:drawable="@android:color/black" />
+</adaptive-icon>
