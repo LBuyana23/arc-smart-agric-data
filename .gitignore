@@ -14,8 +14,12 @@ dist/
 downloads/
 eggs/
 .eggs/
+# Root-level CPython build artefacts
 lib/
 lib64/
+# Allow Flutter source under smart_farm_platform
+!smart_farm_platform/lib/
+!smart_farm_platform/lib/**
 parts/
 sdist/
 var/
